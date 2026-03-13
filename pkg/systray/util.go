@@ -20,11 +20,11 @@ func obfuscateVal(clipboardInstance *clipboard, menuItem menuItem) {
 }
 
 func acceptVal(clipboardInstance *clipboard, menuItem menuItem, val string) {
-	//truncate to fit on screen
 	valTrunc := truncateVal(clipboardInstance, val)
 
 	menuItem.instance.SetTitle(valTrunc)
 	menuItem.instance.SetTooltip(val)
+	menuItem.instance.Show()
 
 	clipboardInstance.valExistsMap[val] = true
 	clipboardInstance.menuItemToVal[menuItem.instance] = val
@@ -38,6 +38,7 @@ func acceptVal(clipboardInstance *clipboard, menuItem menuItem, val string) {
 func deleteMenuItem(clipboardInstance *clipboard, menuItem menuItem) {
 	menuItem.instance.SetTitle("")
 	menuItem.instance.SetTooltip("")
+	menuItem.instance.Hide()
 
 	delete(clipboardInstance.valExistsMap, clipboardInstance.menuItemToVal[menuItem.instance])
 	delete(clipboardInstance.menuItemToVal, menuItem.instance)

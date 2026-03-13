@@ -40,6 +40,7 @@ func onReady() {
 	systray.SetTooltip("Clipboard")
 	mQuit := systray.AddMenuItem("Quit", "Quit the app")
 	mClear := systray.AddMenuItem("Clear", "Clear all entries (except pinned)")
+	systray.AddSeparator()
 
 	go func() {
 		<-mQuit.ClickedCh
@@ -55,11 +56,8 @@ func onReady() {
 }
 
 func initializeClipBoard() {
+	addSlots(100, clipboardInstance)
 
-	addSlots(20, clipboardInstance)
-	changeActiveSlots(10, clipboardInstance)
-
-	//monitor clipboard
 	changes := make(chan string, 10)
 	stopCh := make(chan struct{})
 	go clip.Monitor(time.Millisecond*500, stopCh, changes)
@@ -72,10 +70,10 @@ func initializeClipBoard() {
 			items := clipboardInstance.getPopupItems()
 			if selected := popup.ShowPopup(items); selected >= 0 && selected < len(items) {
 				clip.WriteAll(items[selected].Value)
+				popup.Paste()
 			}
 		}
 	}()
-
 }
 
 func clearSlots(menuItemArray []menuItem) {
@@ -130,8 +128,8 @@ func addSlots(numSlots int, clipboardInstance *clipboard) {
 	defer clipboardInstance.mutex.Unlock()
 
 	for i := 0; i < numSlots; i++ {
-		systray.AddSeparator()
-		menuItemInstance := systray.AddMenuItem("", "(empty slot)")
+		menuItemInstance := systray.AddMenuItem("", "")
+		menuItemInstance.Hide()
 		menuItem := menuItem{
 			instance:     menuItemInstance,
 			subMenuItems: make(map[subMenu]*systray.MenuItem),

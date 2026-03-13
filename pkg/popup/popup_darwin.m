@@ -115,7 +115,10 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             result = target.selectedIndex;
 
             // Return focus to the previously active application
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             [previousApp activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+#pragma clang diagnostic pop
         }
         dispatch_semaphore_signal(sem);
     });
