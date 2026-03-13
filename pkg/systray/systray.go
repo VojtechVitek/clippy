@@ -1,7 +1,6 @@
 package systray
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/getlantern/systray"
 	"github.com/prashantgupta24/go-clip/clip"
 	"github.com/prashantgupta24/go-clip/icon"
+	"github.com/prashantgupta24/go-clip/pkg/popup"
 )
 
 var clipboardInstance *clipboard
@@ -38,34 +38,20 @@ func Run() {
 func onReady() {
 	systray.SetTemplateIcon(icon.Data, icon.Data)
 	systray.SetTooltip("Clipboard")
-	mQuitOrig := systray.AddMenuItem("Quit", "Quit the app")
-	configureMenu := systray.AddMenuItem("Configuration", "")
-	slotsMenu := configureMenu.AddSubMenuItem("slotsMenu", "")
-	slots5 := slotsMenu.AddSubMenuItem("5", "")
-	slots10 := slotsMenu.AddSubMenuItem("10", "")
-	slots20 := slotsMenu.AddSubMenuItem("20", "")
-	clearMenu := configureMenu.AddSubMenuItem("Clear", "Clear all entries (except pinned)")
+	mQuit := systray.AddMenuItem("Quit", "Quit the app")
+	mClear := systray.AddMenuItem("Clear", "Clear all entries (except pinned)")
 
 	go func() {
-		<-mQuitOrig.ClickedCh
-		fmt.Println("Requesting quit")
+		<-mQuit.ClickedCh
 		systray.Quit()
-		fmt.Println("Finished quitting")
 	}()
 	initializeClipBoard()
 	for {
 		select {
-		case <-slots5.ClickedCh:
-			changeActiveSlots(5, clipboardInstance)
-		case <-slots10.ClickedCh:
-			changeActiveSlots(10, clipboardInstance)
-		case <-slots20.ClickedCh:
-			changeActiveSlots(20, clipboardInstance)
-		case <-clearMenu.ClickedCh:
+		case <-mClear.ClickedCh:
 			clearSlots(clipboardInstance.menuItemArray)
 		}
 	}
-
 }
 
 func initializeClipBoard() {
@@ -78,6 +64,17 @@ func initializeClipBoard() {
 	stopCh := make(chan struct{})
 	go clip.Monitor(time.Millisecond*500, stopCh, changes)
 	go monitorClipboard(clipboardInstance, stopCh, changes)
+
+	// Cmd+Shift+V global hotkey → popup clipboard history at cursor
+	hotkeyTriggered := popup.RegisterHotkey()
+	go func() {
+		for range hotkeyTriggered {
+			items := clipboardInstance.getPopupItems()
+			if selected := popup.ShowPopup(items); selected >= 0 && selected < len(items) {
+				clip.WriteAll(items[selected].Value)
+			}
+		}
+	}()
 
 }
 
