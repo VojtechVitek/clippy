@@ -53,6 +53,111 @@ void SimulatePaste(void) {
 }
 @end
 
+// MARK: - Search field that auto-focuses when placed inside an NSMenu
+
+@interface MenuSearchField : NSSearchField
+@end
+
+@implementation MenuSearchField
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (self.window) {
+        // Schedule focus in NSEventTrackingRunLoopMode so it fires during
+        // the blocking popUpMenuPositioningItem: tracking loop.
+        NSArray *modes = @[NSEventTrackingRunLoopMode, NSDefaultRunLoopMode];
+        [self.window performSelector:@selector(makeFirstResponder:)
+                          withObject:self
+                          afterDelay:0.0
+                             inModes:modes];
+    }
+}
+@end
+
+// MARK: - Delegate that fuzzy-filters menu items as the user types
+
+@interface PopupSearchDelegate : NSObject <NSSearchFieldDelegate>
+@property (retain) NSMenu *menu;
+@property (retain) NSMutableArray<NSMenuItem *> *clipItems;
+@property (retain) NSArray<NSString *> *searchTexts;
+@property (assign) PopupMenuTarget *target;
+@property (retain) NSMenuItem *noMatchItem;
+@end
+
+@implementation PopupSearchDelegate
+
+- (void)controlTextDidChange:(NSNotification *)notification {
+    NSSearchField *field = [notification object];
+    NSString *query = [field stringValue];
+
+    int visibleCount = 0;
+    for (NSUInteger i = 0; i < self.clipItems.count; i++) {
+        NSMenuItem *item = self.clipItems[i];
+        NSString *text = self.searchTexts[i];
+
+        if (query.length == 0) {
+            [item setHidden:NO];
+            visibleCount++;
+        } else {
+            BOOL matches = [self fuzzyMatch:query inString:text];
+            [item setHidden:!matches];
+            if (matches) visibleCount++;
+        }
+    }
+
+    [self.noMatchItem setHidden:(visibleCount > 0 || self.clipItems.count == 0)];
+}
+
+- (BOOL)control:(NSControl *)control
+        textView:(NSTextView *)textView
+doCommandBySelector:(SEL)commandSelector {
+    if (commandSelector == @selector(insertNewline:)) {
+        // Enter: select the first visible item
+        for (NSMenuItem *item in self.clipItems) {
+            if (!item.isHidden && item.isEnabled) {
+                self.target.selectedIndex = (int)item.tag;
+                [self.menu cancelTracking];
+                return YES;
+            }
+        }
+        return YES;
+    }
+    if (commandSelector == @selector(cancelOperation:)) {
+        [self.menu cancelTracking];
+        return YES;
+    }
+    return NO;
+}
+
+// Returns YES if every character in query appears (in order) in str,
+// performing a case-insensitive comparison.
+- (BOOL)fuzzyMatch:(NSString *)query inString:(NSString *)str {
+    NSString *lq = [query lowercaseString];
+    NSString *ls = [str lowercaseString];
+
+    NSUInteger si = 0;
+    for (NSUInteger qi = 0; qi < lq.length; qi++) {
+        unichar c = [lq characterAtIndex:qi];
+        BOOL found = NO;
+        while (si < ls.length) {
+            if ([ls characterAtIndex:si] == c) {
+                si++;
+                found = YES;
+                break;
+            }
+            si++;
+        }
+        if (!found) return NO;
+    }
+    return YES;
+}
+
+@end
+
+// MARK: - Show popup
+
 int ShowPopupMenuAtCursor(const char **titles, int count) {
     __block int result = -1;
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
@@ -70,44 +175,79 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
             [menu setAutoenablesItems:NO];
 
-            // Header
-            NSMenuItem *titleItem = [[NSMenuItem alloc] initWithTitle:@"Clipboard History"
-                                                               action:NULL
-                                                        keyEquivalent:@""];
-            NSFont *boldFont = [NSFont boldSystemFontOfSize:13];
-            NSDictionary *attrs = @{NSFontAttributeName: boldFont};
-            NSAttributedString *attrTitle = [[NSAttributedString alloc]
-                initWithString:@"Clipboard History" attributes:attrs];
-            [titleItem setAttributedTitle:attrTitle];
-            [titleItem setEnabled:NO];
-            [menu addItem:titleItem];
+            // Search field replaces the old "Clipboard History" header
+            MenuSearchField *searchField = [[MenuSearchField alloc]
+                initWithFrame:NSMakeRect(10, 4, 280, 24)];
+            [searchField setPlaceholderString:@"Search clipboard history\u2026"];
+            [searchField setBezelStyle:NSTextFieldRoundedBezel];
+            [searchField setFont:[NSFont systemFontOfSize:13]];
+            [searchField setFocusRingType:NSFocusRingTypeNone];
+
+            NSView *searchContainer = [[NSView alloc]
+                initWithFrame:NSMakeRect(0, 0, 300, 32)];
+            [searchContainer addSubview:searchField];
+
+            NSMenuItem *searchMenuItem = [[NSMenuItem alloc]
+                initWithTitle:@"" action:NULL keyEquivalent:@""];
+            [searchMenuItem setView:searchContainer];
+            [searchMenuItem setEnabled:YES];
+            [menu addItem:searchMenuItem];
             [menu addItem:[NSMenuItem separatorItem]];
 
+            // Search delegate
+            PopupSearchDelegate *searchDelegate = [[PopupSearchDelegate alloc] init];
+            searchDelegate.menu = menu;
+            searchDelegate.target = target;
+            searchDelegate.clipItems = [NSMutableArray array];
+            NSMutableArray *texts = [NSMutableArray array];
+
+            // "No matches" placeholder (hidden until a search yields zero results)
+            NSMenuItem *noMatchItem = [[NSMenuItem alloc]
+                initWithTitle:@"No matches" action:NULL keyEquivalent:@""];
+            [noMatchItem setEnabled:NO];
+            [noMatchItem setHidden:YES];
+            [menu addItem:noMatchItem];
+            searchDelegate.noMatchItem = noMatchItem;
+
             if (count == 0) {
-                NSMenuItem *emptyItem = [[NSMenuItem alloc] initWithTitle:@"(no items)"
-                                                                   action:NULL
-                                                            keyEquivalent:@""];
+                NSMenuItem *emptyItem = [[NSMenuItem alloc]
+                    initWithTitle:@"(no items)" action:NULL keyEquivalent:@""];
                 [emptyItem setEnabled:NO];
                 [menu addItem:emptyItem];
             } else {
                 for (int i = 0; i < count; i++) {
                     NSString *text = [NSString stringWithUTF8String:titles[i]];
-                    NSString *title = [NSString stringWithFormat:@"%d.  %@", i + 1, text];
-                    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title
-                                                                 action:@selector(menuItemClicked:)
-                                                          keyEquivalent:@""];
+                    NSString *title =
+                        [NSString stringWithFormat:@"%d.  %@", i + 1, text];
+                    NSMenuItem *item = [[NSMenuItem alloc]
+                        initWithTitle:title
+                               action:@selector(menuItemClicked:)
+                        keyEquivalent:@""];
                     [item setTarget:target];
                     [item setTag:i];
                     [item setEnabled:YES];
 
+                    // Cmd+1…9 shortcuts (Cmd modifier avoids conflict with the
+                    // search field, which captures bare keystrokes).
                     if (i < 9) {
-                        [item setKeyEquivalent:[NSString stringWithFormat:@"%d", i + 1]];
-                        [item setKeyEquivalentModifierMask:0];
+                        [item setKeyEquivalent:
+                            [NSString stringWithFormat:@"%d", i + 1]];
+                        [item setKeyEquivalentModifierMask:
+                            NSEventModifierFlagCommand];
                     }
 
                     [menu addItem:item];
+                    [searchDelegate.clipItems addObject:item];
+                    [texts addObject:text];
                 }
             }
+
+            searchDelegate.searchTexts = texts;
+            [searchField setDelegate:searchDelegate];
+
+            // Keep the delegate alive during menu tracking (NSSearchField's
+            // delegate property is weak, so store a strong ref here).
+            [searchMenuItem setRepresentedObject:searchDelegate];
 
             NSPoint mouseLoc = [NSEvent mouseLocation];
             [menu popUpMenuPositioningItem:nil atLocation:mouseLoc inView:nil];
