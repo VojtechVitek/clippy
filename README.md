@@ -1,25 +1,23 @@
-# Go-clip
+# Clippy
 
-[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go) [![codecov](https://codecov.io/gh/prashantgupta24/go-clip/branch/master/graph/badge.svg?token=PSO715XHBI)](https://codecov.io/gh/prashantgupta24/go-clip) [![Go Report Card](https://goreportcard.com/badge/github.com/VojtechVitek/clippy)](https://goreportcard.com/report/github.com/VojtechVitek/clippy) [![version][version-badge]][releases] ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/prashantgupta24/go-clip)
+[Go Report Card](https://goreportcard.com/badge/github.com/VojtechVitek/clippy)](https://goreportcard.com/report/github.com/VojtechVitek/clippy) [![version][version-badge]][releases] ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/prashantgupta24/go-clip)
 
-[version-badge]: https://img.shields.io/github/v/release/prashantgupta24/go-clip
 [releases]: https://github.com/VojtechVitek/clippy/releases
 
-A minimalistic clipboard manager for Mac.
+A minimalistic in-memory clipboard manager for macOS.
 
-<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=6 orderedList=false} -->
+Global hotkey (Cmd+Shift+V) popup menu at mouse cursor.
 
-<!-- code_chunk_output -->
-
-- [Demo](#demo)
-- [Disclaimer](#disclaimer)
-- [Basic functionality](#basic-functionality)
-  - [Pin](#pin)
-  - [Obfuscate](#obfuscate)
-- [How to install](#how-to-install)
-  - [Install from binary](#install-from-binary)
-  - [Install from source](#install-from-source)
-- [Future work](#future-work)
+- [Clippy](#clippy)
+  - [Demo](#demo)
+  - [Disclaimer](#disclaimer)
+  - [Basic functionality](#basic-functionality)
+    - [Pin](#pin)
+    - [Obfuscate](#obfuscate)
+  - [How to install](#how-to-install)
+    - [Install from binary](#install-from-binary)
+    - [Install from source](#install-from-source)
+  - [Future work](#future-work)
 
 <!-- /code_chunk_output -->
 

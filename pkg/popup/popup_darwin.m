@@ -177,14 +177,14 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
 
             // Search field replaces the old "Clipboard History" header
             MenuSearchField *searchField = [[MenuSearchField alloc]
-                initWithFrame:NSMakeRect(10, 4, 280, 24)];
+                initWithFrame:NSMakeRect(10, 4, 380, 24)];
             [searchField setPlaceholderString:@"Search clipboard history\u2026"];
             [searchField setBezelStyle:NSTextFieldRoundedBezel];
             [searchField setFont:[NSFont systemFontOfSize:13]];
             [searchField setFocusRingType:NSFocusRingTypeNone];
 
             NSView *searchContainer = [[NSView alloc]
-                initWithFrame:NSMakeRect(0, 0, 300, 32)];
+                initWithFrame:NSMakeRect(0, 0, 400, 32)];
             [searchContainer addSubview:searchField];
 
             NSMenuItem *searchMenuItem = [[NSMenuItem alloc]
@@ -217,10 +217,8 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             } else {
                 for (int i = 0; i < count; i++) {
                     NSString *text = [NSString stringWithUTF8String:titles[i]];
-                    NSString *title =
-                        [NSString stringWithFormat:@"%d.  %@", i + 1, text];
                     NSMenuItem *item = [[NSMenuItem alloc]
-                        initWithTitle:title
+                        initWithTitle:text
                                action:@selector(menuItemClicked:)
                         keyEquivalent:@""];
                     [item setTarget:target];

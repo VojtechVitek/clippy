@@ -40,7 +40,10 @@ func deleteMenuItem(clipboardInstance *clipboard, menuItem menuItem) {
 	menuItem.instance.SetTooltip("")
 	menuItem.instance.Hide()
 
-	delete(clipboardInstance.valExistsMap, clipboardInstance.menuItemToVal[menuItem.instance])
+	if val, exists := clipboardInstance.menuItemToVal[menuItem.instance]; exists {
+		clipboardInstance.removeRecent(val)
+		delete(clipboardInstance.valExistsMap, val)
+	}
 	delete(clipboardInstance.menuItemToVal, menuItem.instance)
 
 	for menuName, subMenu := range menuItem.subMenuItems {

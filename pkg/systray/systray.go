@@ -185,33 +185,35 @@ func addSlots(numSlots int, clipboardInstance *clipboard) {
 }
 
 func monitorClipboard(clipboardInstance *clipboard, stopCh chan struct{}, changes chan string) {
-	// Watch for changes
 	for {
 		select {
 		case <-stopCh:
-			break
+			return
 		default:
 			change, ok := <-changes
 			if ok {
 				clipboardInstance.mutex.Lock()
 				val := strings.TrimSpace(change)
-				// fmt.Println("val : ", val)
-				if _, exists := clipboardInstance.valExistsMap[val]; val != "" && !exists {
-					for {
-						menuItem := clipboardInstance.menuItemArray[clipboardInstance.nextMenuItemIndex]
-						// fmt.Println("Index : ", clipboardInstance.nextMenuItemIndex)
-						if !menuItem.instance.Disabled() && !menuItem.instance.Checked() {
-							// fmt.Println("final : ", clipboardInstance.nextMenuItemIndex)
-							deleteMenuItem(clipboardInstance, menuItem) //delete last entry, if exists
-							acceptVal(clipboardInstance, menuItem, val) //add new entry
-							clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
-							break
-						} else {
-							clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
+				if val != "" {
+					if clipboardInstance.valExistsMap[val] {
+						// Duplicate: just move to front of the recent list
+						clipboardInstance.pushRecent(val)
+					} else {
+						// New value: allocate a systray slot and track it
+						for {
+							menuItem := clipboardInstance.menuItemArray[clipboardInstance.nextMenuItemIndex]
+							if !menuItem.instance.Disabled() && !menuItem.instance.Checked() {
+								deleteMenuItem(clipboardInstance, menuItem)
+								acceptVal(clipboardInstance, menuItem, val)
+								clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
+								break
+							} else {
+								clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
+							}
 						}
+						clipboardInstance.pushRecent(val)
 					}
 				}
-				// fmt.Println("release lock")
 				clipboardInstance.mutex.Unlock()
 			} else {
 				log.Printf("channel has been closed. exiting..")

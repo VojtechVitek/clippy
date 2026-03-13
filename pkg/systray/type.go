@@ -16,6 +16,7 @@ type clipboard struct {
 	nextMenuItemIndex int
 	menuItemToVal     map[*systray.MenuItem]string
 	valExistsMap      map[string]bool
+	recentValues      []string // most-recent-first ordering for the popup
 	activeSlots       int
 	truncateLength    int
 	pwShowLength      int
@@ -31,19 +32,39 @@ func (c *clipboard) getPopupItems() []popup.Item {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	var items []popup.Item
-	for _, mi := range c.menuItemArray {
-		if val, exists := c.menuItemToVal[mi.instance]; exists {
-			title := strings.ReplaceAll(val, "\n", " ")
-			title = strings.ReplaceAll(title, "\r", "")
-			if len(title) > popupTruncateLength {
-				title = title[:popupTruncateLength] + "... (" + strconv.Itoa(len(val)) + " chars)"
-			}
-			items = append(items, popup.Item{
-				Title: title,
-				Value: val,
-			})
+	items := make([]popup.Item, 0, len(c.recentValues))
+	for _, val := range c.recentValues {
+		title := strings.ReplaceAll(val, "\n", " ")
+		title = strings.ReplaceAll(title, "\r", "")
+		if len(title) > popupTruncateLength {
+			title = title[:popupTruncateLength] + "... (" + strconv.Itoa(len(val)) + " chars)"
 		}
+		items = append(items, popup.Item{
+			Title: title,
+			Value: val,
+		})
 	}
 	return items
+}
+
+// pushRecent moves val to the front of recentValues, removing any existing
+// occurrence first. Must be called with c.mutex held.
+func (c *clipboard) pushRecent(val string) {
+	for i, v := range c.recentValues {
+		if v == val {
+			c.recentValues = append(c.recentValues[:i], c.recentValues[i+1:]...)
+			break
+		}
+	}
+	c.recentValues = append([]string{val}, c.recentValues...)
+}
+
+// removeRecent removes val from recentValues. Must be called with c.mutex held.
+func (c *clipboard) removeRecent(val string) {
+	for i, v := range c.recentValues {
+		if v == val {
+			c.recentValues = append(c.recentValues[:i], c.recentValues[i+1:]...)
+			return
+		}
+	}
 }
