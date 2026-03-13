@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
 	"fyne.io/fyne/widget"
-	"github.com/prashantgupta24/go-clip/clip"
+	"github.com/VojtechVitek/clippy/clip"
 )
 
 var (
@@ -46,7 +46,7 @@ func newButton(id int) *customButton {
 	return b
 }
 
-//Start the app
+// Start the app
 func Start() {
 
 	a := app.New()

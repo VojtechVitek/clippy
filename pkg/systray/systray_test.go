@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VojtechVitek/clippy/clip"
 	"github.com/getlantern/systray"
-	"github.com/prashantgupta24/go-clip/clip"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/prashantgupta24/go-clip/pkg/systray"
+import "github.com/VojtechVitek/clippy/pkg/systray"
 
 func main() {
 	systray.Run()

@@ -5,8 +5,8 @@ import (
 
 	"fyne.io/fyne/app"
 	"fyne.io/fyne/widget"
+	"github.com/VojtechVitek/clippy/icon"
 	"github.com/getlantern/systray"
-	"github.com/prashantgupta24/go-clip/icon"
 )
 
 func main() {

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/VojtechVitek/clippy/clip"
+	"github.com/VojtechVitek/clippy/icon"
+	"github.com/VojtechVitek/clippy/pkg/popup"
 	"github.com/getlantern/systray"
-	"github.com/prashantgupta24/go-clip/clip"
-	"github.com/prashantgupta24/go-clip/icon"
-	"github.com/prashantgupta24/go-clip/pkg/popup"
 )
 
 var clipboardInstance *clipboard
@@ -29,7 +29,7 @@ func initInstance() {
 	}
 }
 
-//Run starts the system tray app
+// Run starts the system tray app
 func Run() {
 	initInstance()
 	systray.Run(onReady, func() {})

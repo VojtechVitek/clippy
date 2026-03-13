@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/VojtechVitek/clippy/pkg/popup"
 	"github.com/getlantern/systray"
-	"github.com/prashantgupta24/go-clip/pkg/popup"
 )
 
 const popupTruncateLength = 60
