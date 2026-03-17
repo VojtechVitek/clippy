@@ -16,14 +16,15 @@ var clipboardInstance *clipboard
 type subMenu string
 
 const (
-	pinMenu       subMenu = "pin"
 	obfuscateMenu subMenu = "obfuscate"
+	deleteMenu    subMenu = "delete"
 )
 
 func initInstance() {
 	clipboardInstance = &clipboard{
 		menuItemToVal:  make(map[*systray.MenuItem]string),
 		valExistsMap:   make(map[string]bool),
+		obfuscatedVals: make(map[string]bool),
 		truncateLength: 20,
 		pwShowLength:   4,
 	}
@@ -39,7 +40,7 @@ func onReady() {
 	systray.SetTemplateIcon(icon.Data, icon.Data)
 	systray.SetTooltip("Clipboard")
 	mQuit := systray.AddMenuItem("Quit", "Quit the app")
-	mClear := systray.AddMenuItem("Clear", "Clear all entries (except pinned)")
+	mClear := systray.AddMenuItem("Clear", "Clear all entries")
 	systray.AddSeparator()
 
 	go func() {
@@ -81,9 +82,7 @@ func clearSlots(menuItemArray []menuItem) {
 	defer clipboardInstance.mutex.Unlock()
 
 	for _, menuItem := range menuItemArray {
-		if !menuItem.instance.Checked() {
-			deleteMenuItem(clipboardInstance, menuItem)
-		}
+		deleteMenuItem(clipboardInstance, menuItem)
 	}
 	clipboardInstance.nextMenuItemIndex = 0
 }
@@ -130,24 +129,22 @@ func addSlots(numSlots int, clipboardInstance *clipboard) {
 	for i := 0; i < numSlots; i++ {
 		menuItemInstance := systray.AddMenuItem("", "")
 		menuItemInstance.Hide()
-		menuItem := menuItem{
+		mi := menuItem{
 			instance:     menuItemInstance,
 			subMenuItems: make(map[subMenu]*systray.MenuItem),
 		}
 
-		//sub menu1
-		subMenuPinToggle := menuItemInstance.AddSubMenuItem("Pin item", "")
-		subMenuPinToggle.Hide()
-		subMenuPinToggle.Disable()
-		menuItem.subMenuItems[pinMenu] = subMenuPinToggle
-
-		//sub menu2
 		subMenuObfuscate := menuItemInstance.AddSubMenuItem("Obfuscate Password", "")
 		subMenuObfuscate.Hide()
 		subMenuObfuscate.Disable()
-		menuItem.subMenuItems[obfuscateMenu] = subMenuObfuscate
+		mi.subMenuItems[obfuscateMenu] = subMenuObfuscate
 
-		clipboardInstance.menuItemArray = append(clipboardInstance.menuItemArray, menuItem)
+		subMenuDelete := menuItemInstance.AddSubMenuItem("Delete", "")
+		subMenuDelete.Hide()
+		subMenuDelete.Disable()
+		mi.subMenuItems[deleteMenu] = subMenuDelete
+
+		clipboardInstance.menuItemArray = append(clipboardInstance.menuItemArray, mi)
 		go func() {
 			for {
 				select {
@@ -157,25 +154,18 @@ func addSlots(numSlots int, clipboardInstance *clipboard) {
 					}
 				case <-subMenuObfuscate.ClickedCh:
 					clipboardInstance.mutex.Lock()
-					// fmt.Println("lock")
 					if subMenuObfuscate.Checked() {
 						val := clipboardInstance.menuItemToVal[menuItemInstance]
 						menuItemInstance.SetTitle(truncateVal(clipboardInstance, val))
 						subMenuObfuscate.Uncheck()
+						delete(clipboardInstance.obfuscatedVals, val)
 					} else {
-						obfuscateVal(clipboardInstance, menuItem)
+						obfuscateVal(clipboardInstance, mi)
 					}
-					// fmt.Println("unlock")
 					clipboardInstance.mutex.Unlock()
-				case <-subMenuPinToggle.ClickedCh:
+				case <-subMenuDelete.ClickedCh:
 					clipboardInstance.mutex.Lock()
-					if subMenuPinToggle.Checked() {
-						subMenuPinToggle.SetTitle("Pin item")
-						subMenuPinToggle.Uncheck()
-						menuItemInstance.Uncheck()
-					} else {
-						substituteMenuItem(clipboardInstance, menuItem)
-					}
+					deleteMenuItem(clipboardInstance, mi)
 					clipboardInstance.mutex.Unlock()
 				}
 			}
@@ -200,17 +190,17 @@ func monitorClipboard(clipboardInstance *clipboard, stopCh chan struct{}, change
 						clipboardInstance.pushRecent(val)
 					} else {
 						// New value: allocate a systray slot and track it
-						for {
-							menuItem := clipboardInstance.menuItemArray[clipboardInstance.nextMenuItemIndex]
-							if !menuItem.instance.Disabled() && !menuItem.instance.Checked() {
-								deleteMenuItem(clipboardInstance, menuItem)
-								acceptVal(clipboardInstance, menuItem, val)
-								clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
-								break
-							} else {
-								clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
-							}
+					for {
+						menuItem := clipboardInstance.menuItemArray[clipboardInstance.nextMenuItemIndex]
+						if !menuItem.instance.Disabled() {
+							deleteMenuItem(clipboardInstance, menuItem)
+							acceptVal(clipboardInstance, menuItem, val)
+							clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
+							break
+						} else {
+							clipboardInstance.nextMenuItemIndex = (clipboardInstance.nextMenuItemIndex + 1) % clipboardInstance.activeSlots
 						}
+					}
 						clipboardInstance.pushRecent(val)
 					}
 				}

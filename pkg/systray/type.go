@@ -16,6 +16,7 @@ type clipboard struct {
 	nextMenuItemIndex int
 	menuItemToVal     map[*systray.MenuItem]string
 	valExistsMap      map[string]bool
+	obfuscatedVals    map[string]bool
 	recentValues      []string // most-recent-first ordering for the popup
 	activeSlots       int
 	truncateLength    int
@@ -34,10 +35,15 @@ func (c *clipboard) getPopupItems() []popup.Item {
 
 	items := make([]popup.Item, 0, len(c.recentValues))
 	for _, val := range c.recentValues {
-		title := strings.ReplaceAll(val, "\n", " ")
-		title = strings.ReplaceAll(title, "\r", "")
-		if len(title) > popupTruncateLength {
-			title = title[:popupTruncateLength] + "... (" + strconv.Itoa(len(val)) + " chars)"
+		var title string
+		if c.obfuscatedVals[val] {
+			title = c.obfuscateTitle(val)
+		} else {
+			title = strings.ReplaceAll(val, "\n", " ")
+			title = strings.ReplaceAll(title, "\r", "")
+			if len(title) > popupTruncateLength {
+				title = title[:popupTruncateLength] + "... (" + strconv.Itoa(len(val)) + " chars)"
+			}
 		}
 		items = append(items, popup.Item{
 			Title: title,
@@ -45,6 +51,16 @@ func (c *clipboard) getPopupItems() []popup.Item {
 		})
 	}
 	return items
+}
+
+func (c *clipboard) obfuscateTitle(val string) string {
+	var b strings.Builder
+	show := min(len(val), c.pwShowLength)
+	b.WriteString(val[:show])
+	for i := show; i < min(len(val), popupTruncateLength); i++ {
+		b.WriteByte('*')
+	}
+	return b.String()
 }
 
 // pushRecent moves val to the front of recentValues, removing any existing

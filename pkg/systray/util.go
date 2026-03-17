@@ -17,6 +17,7 @@ func obfuscateVal(clipboardInstance *clipboard, menuItem menuItem) {
 	menuItem.instance.SetTitle(newTitle.String())
 	menuItem.instance.SetTooltip(newTitle.String())
 	menuItem.subMenuItems[obfuscateMenu].Check()
+	clipboardInstance.obfuscatedVals[val] = true
 }
 
 func acceptVal(clipboardInstance *clipboard, menuItem menuItem, val string) {
@@ -43,51 +44,14 @@ func deleteMenuItem(clipboardInstance *clipboard, menuItem menuItem) {
 	if val, exists := clipboardInstance.menuItemToVal[menuItem.instance]; exists {
 		clipboardInstance.removeRecent(val)
 		delete(clipboardInstance.valExistsMap, val)
+		delete(clipboardInstance.obfuscatedVals, val)
 	}
 	delete(clipboardInstance.menuItemToVal, menuItem.instance)
 
-	for menuName, subMenu := range menuItem.subMenuItems {
+	for _, subMenu := range menuItem.subMenuItems {
 		subMenu.Hide()
 		subMenu.Disable()
-		if menuName != pinMenu {
-			subMenu.Uncheck()
-		}
-	}
-}
-
-func exchangeMenuItems(clipboardInstance *clipboard, existingMenuItem, newMenuItem menuItem) {
-	existingMenuItemVal := clipboardInstance.menuItemToVal[existingMenuItem.instance]
-	newMenuItemVal := clipboardInstance.menuItemToVal[newMenuItem.instance]
-
-	existingMenuObfuscateChecked := existingMenuItem.subMenuItems[obfuscateMenu].Checked()
-	newMenuObfuscateChecked := newMenuItem.subMenuItems[obfuscateMenu].Checked()
-
-	deleteMenuItem(clipboardInstance, existingMenuItem)
-	deleteMenuItem(clipboardInstance, newMenuItem)
-
-	acceptVal(clipboardInstance, existingMenuItem, newMenuItemVal)
-	acceptVal(clipboardInstance, newMenuItem, existingMenuItemVal)
-
-	if existingMenuObfuscateChecked {
-		obfuscateVal(clipboardInstance, newMenuItem)
-	}
-	if newMenuObfuscateChecked {
-		obfuscateVal(clipboardInstance, existingMenuItem)
-	}
-}
-
-func substituteMenuItem(clipboardInstance *clipboard, menuItem menuItem) {
-	for i := 0; i < clipboardInstance.activeSlots; i++ {
-		existingMenuItem := clipboardInstance.menuItemArray[i]
-		if !existingMenuItem.instance.Disabled() && !existingMenuItem.instance.Checked() {
-			if existingMenuItem.instance != menuItem.instance {
-				exchangeMenuItems(clipboardInstance, existingMenuItem, menuItem)
-			}
-			existingMenuItem.subMenuItems[pinMenu].Check()
-			existingMenuItem.subMenuItems[pinMenu].SetTitle("Unpin item")
-			existingMenuItem.instance.Check()
-			break
-		}
+		subMenu.Uncheck()
 	}
 }
 
