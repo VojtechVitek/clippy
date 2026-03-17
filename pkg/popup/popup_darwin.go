@@ -6,6 +6,7 @@ package popup
 #include <stdlib.h>
 
 extern void RegisterGlobalHotKey(void);
+extern void EnsureAccessibility(void);
 extern int ShowPopupMenuAtCursor(const char **titles, int count);
 extern void SimulatePaste(void);
 */
@@ -34,6 +35,7 @@ func goHotKeyCallback() {
 // after the application event loop is running (e.g. from systray's onReady).
 func RegisterHotkey() <-chan struct{} {
 	C.RegisterGlobalHotKey()
+	C.EnsureAccessibility()
 	return hotkeyCh
 }
 

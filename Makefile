@@ -14,7 +14,7 @@ build: clean
 build-win:
 	env GOOS=windows GOARCH=amd64 go build -ldflags -H=windowsgui -o ./bin/go-clip-win.exe cmd/main.go
 open: build
-	killall go-clip || true
+	killall go-clip 2>/dev/null && sleep 0.5
 	open ./bin/go-clip.app
 
 clean:

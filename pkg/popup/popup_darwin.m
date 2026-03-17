@@ -17,17 +17,23 @@ void RegisterGlobalHotKey(void) {
 
         EventHotKeyID hotKeyID = {'gclp', 1};
         EventHotKeyRef hotKeyRef;
-        // Virtual key code 9 = V, cmdKey | shiftKey = Cmd+Shift
         RegisterEventHotKey(9, cmdKey | shiftKey, hotKeyID,
                             GetApplicationEventTarget(), 0, &hotKeyRef);
     });
 }
 
+// MARK: - Accessibility check
+
+void EnsureAccessibility(void) {
+    NSDictionary *opts = @{(__bridge NSString *)kAXTrustedCheckOptionPrompt: @YES};
+    Boolean trusted = AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)opts);
+    NSLog(@"[clippy] Accessibility trusted: %s", trusted ? "YES" : "NO");
+}
+
 // MARK: - Simulate Paste (Cmd+V)
-// Requires Accessibility permissions in System Settings > Privacy & Security.
 
 void SimulatePaste(void) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(100 * NSEC_PER_MSEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(200 * NSEC_PER_MSEC)),
                    dispatch_get_main_queue(), ^{
         CGEventRef keyDown = CGEventCreateKeyboardEvent(NULL, (CGKeyCode)9, true);
         CGEventSetFlags(keyDown, kCGEventFlagMaskCommand);
@@ -53,29 +59,6 @@ void SimulatePaste(void) {
 }
 @end
 
-// MARK: - Search field that auto-focuses when placed inside an NSMenu
-
-@interface MenuSearchField : NSSearchField
-@end
-
-@implementation MenuSearchField
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-- (void)viewDidMoveToWindow {
-    [super viewDidMoveToWindow];
-    if (self.window) {
-        // Schedule focus in NSEventTrackingRunLoopMode so it fires during
-        // the blocking popUpMenuPositioningItem: tracking loop.
-        NSArray *modes = @[NSEventTrackingRunLoopMode, NSDefaultRunLoopMode];
-        [self.window performSelector:@selector(makeFirstResponder:)
-                          withObject:self
-                          afterDelay:0.0
-                             inModes:modes];
-    }
-}
-@end
-
 // MARK: - Delegate that fuzzy-filters menu items as the user types
 
 @interface PopupSearchDelegate : NSObject <NSSearchFieldDelegate>
@@ -84,6 +67,82 @@ void SimulatePaste(void) {
 @property (retain) NSArray<NSString *> *searchTexts;
 @property (assign) PopupMenuTarget *target;
 @property (retain) NSMenuItem *noMatchItem;
+@end
+
+// MARK: - Search field: auto-focuses and handles Cmd+key during menu tracking
+//
+// Local NSEvent monitors do NOT fire during NSMenu tracking (Apple docs).
+// Instead we override performKeyEquivalent: which IS called on custom views
+// inside menu items during tracking.
+
+@interface MenuSearchField : NSSearchField
+@property (assign) PopupSearchDelegate *searchDelegate;
+@end
+
+@implementation MenuSearchField
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (self.window) {
+        NSArray *modes = @[NSEventTrackingRunLoopMode, NSDefaultRunLoopMode];
+        [self.window performSelector:@selector(makeFirstResponder:)
+                          withObject:self
+                          afterDelay:0.0
+                             inModes:modes];
+    }
+}
+
+- (BOOL)performKeyEquivalent:(NSEvent *)event {
+    if (!(event.modifierFlags & NSEventModifierFlagCommand))
+        return NO;
+
+    NSString *chars = [event charactersIgnoringModifiers];
+    if (chars.length != 1) return NO;
+    unichar c = [chars characterAtIndex:0];
+
+    // Cmd+A/C/V/X → forward to the field editor for text editing
+    SEL action = NULL;
+    if (c == 'a')      action = @selector(selectAll:);
+    else if (c == 'c') action = @selector(copy:);
+    else if (c == 'v') action = @selector(paste:);
+    else if (c == 'x') action = @selector(cut:);
+
+    if (action) {
+        NSText *editor = [self currentEditor];
+        if (!editor && self.window) {
+            NSResponder *fr = [self.window firstResponder];
+            if ([fr isKindOfClass:[NSText class]])
+                editor = (NSText *)fr;
+        }
+        if (editor) {
+            [editor performSelector:action withObject:nil];
+            return YES;
+        }
+        return NO;
+    }
+
+    // Cmd+1..9 → select the corresponding clipboard item
+    if (c >= '1' && c <= '9' && self.searchDelegate) {
+        int idx = c - '1';
+        if (idx < (int)[self.searchDelegate.clipItems count]) {
+            NSMenuItem *item = [self.searchDelegate.clipItems objectAtIndex:idx];
+            if (!item.isHidden && item.isEnabled) {
+                self.searchDelegate.target.selectedIndex = (int)item.tag;
+                [self.searchDelegate.menu cancelTracking];
+                return YES;
+            }
+        }
+        return YES;
+    }
+
+    // Let the menu handle anything else
+    return NO;
+}
+
 @end
 
 @implementation PopupSearchDelegate
@@ -114,7 +173,6 @@ void SimulatePaste(void) {
         textView:(NSTextView *)textView
 doCommandBySelector:(SEL)commandSelector {
     if (commandSelector == @selector(insertNewline:)) {
-        // Enter: select the first visible item
         for (NSMenuItem *item in self.clipItems) {
             if (!item.isHidden && item.isEnabled) {
                 self.target.selectedIndex = (int)item.tag;
@@ -131,8 +189,6 @@ doCommandBySelector:(SEL)commandSelector {
     return NO;
 }
 
-// Returns YES if every character in query appears (in order) in str,
-// performing a case-insensitive comparison.
 - (BOOL)fuzzyMatch:(NSString *)query inString:(NSString *)str {
     NSString *lq = [query lowercaseString];
     NSString *ls = [str lowercaseString];
@@ -175,7 +231,7 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
             [menu setAutoenablesItems:NO];
 
-            // Search field replaces the old "Clipboard History" header
+            // Search field
             MenuSearchField *searchField = [[MenuSearchField alloc]
                 initWithFrame:NSMakeRect(10, 4, 380, 24)];
             [searchField setPlaceholderString:@"Search clipboard history\u2026"];
@@ -201,13 +257,17 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             searchDelegate.clipItems = [NSMutableArray array];
             NSMutableArray *texts = [NSMutableArray array];
 
-            // "No matches" placeholder (hidden until a search yields zero results)
             NSMenuItem *noMatchItem = [[NSMenuItem alloc]
                 initWithTitle:@"No matches" action:NULL keyEquivalent:@""];
             [noMatchItem setEnabled:NO];
             [noMatchItem setHidden:YES];
             [menu addItem:noMatchItem];
             searchDelegate.noMatchItem = noMatchItem;
+
+            // Wire up search field ↔ delegate
+            [searchField setDelegate:searchDelegate];
+            [searchField setSearchDelegate:searchDelegate];
+            [searchMenuItem setRepresentedObject:searchDelegate];
 
             if (count == 0) {
                 NSMenuItem *emptyItem = [[NSMenuItem alloc]
@@ -225,8 +285,6 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
                     [item setTag:i];
                     [item setEnabled:YES];
 
-                    // Cmd+1…9 shortcuts (Cmd modifier avoids conflict with the
-                    // search field, which captures bare keystrokes).
                     if (i < 9) {
                         [item setKeyEquivalent:
                             [NSString stringWithFormat:@"%d", i + 1]];
@@ -241,18 +299,12 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
             }
 
             searchDelegate.searchTexts = texts;
-            [searchField setDelegate:searchDelegate];
-
-            // Keep the delegate alive during menu tracking (NSSearchField's
-            // delegate property is weak, so store a strong ref here).
-            [searchMenuItem setRepresentedObject:searchDelegate];
 
             NSPoint mouseLoc = [NSEvent mouseLocation];
             [menu popUpMenuPositioningItem:nil atLocation:mouseLoc inView:nil];
 
             result = target.selectedIndex;
 
-            // Return focus to the previously active application
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
             [previousApp activateWithOptions:NSApplicationActivateIgnoringOtherApps];
