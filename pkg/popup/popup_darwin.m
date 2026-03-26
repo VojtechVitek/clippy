@@ -276,7 +276,15 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
                 [menu addItem:emptyItem];
             } else {
                 for (int i = 0; i < count; i++) {
-                    NSString *text = [NSString stringWithUTF8String:titles[i]];
+                    NSString *text = nil;
+                    if (titles[i] != NULL) {
+                        text = [NSString stringWithUTF8String:titles[i]];
+                    }
+                    // Guard against invalid UTF-8 or unexpected NULL pointers.
+                    // NSMenuItem requires a non-nil title.
+                    if (text == nil) {
+                        text = @"(invalid text)";
+                    }
                     NSMenuItem *item = [[NSMenuItem alloc]
                         initWithTitle:text
                                action:@selector(menuItemClicked:)
