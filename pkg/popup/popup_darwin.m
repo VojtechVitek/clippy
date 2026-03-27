@@ -214,6 +214,15 @@ doCommandBySelector:(SEL)commandSelector {
 
 // MARK: - Show popup
 
+/// NSMenuItem requires a non-nil NSString title; stringWithUTF8String returns nil on invalid UTF-8.
+static NSString *SafeMenuTitleFromUTF8(const char *cstr) {
+    if (cstr == NULL) {
+        return @"(empty)";
+    }
+    NSString *s = [NSString stringWithUTF8String:cstr];
+    return s ? s : @"(invalid UTF-8)";
+}
+
 int ShowPopupMenuAtCursor(const char **titles, int count) {
     __block int result = -1;
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
@@ -276,15 +285,7 @@ int ShowPopupMenuAtCursor(const char **titles, int count) {
                 [menu addItem:emptyItem];
             } else {
                 for (int i = 0; i < count; i++) {
-                    NSString *text = nil;
-                    if (titles[i] != NULL) {
-                        text = [NSString stringWithUTF8String:titles[i]];
-                    }
-                    // Guard against invalid UTF-8 or unexpected NULL pointers.
-                    // NSMenuItem requires a non-nil title.
-                    if (text == nil) {
-                        text = @"(invalid text)";
-                    }
+                    NSString *text = SafeMenuTitleFromUTF8(titles[i]);
                     NSMenuItem *item = [[NSMenuItem alloc]
                         initWithTitle:text
                                action:@selector(menuItemClicked:)

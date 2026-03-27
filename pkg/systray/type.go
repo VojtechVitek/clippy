@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/VojtechVitek/clippy/pkg/popup"
 	"github.com/getlantern/systray"
@@ -42,15 +43,30 @@ func (c *clipboard) getPopupItems() []popup.Item {
 			title = strings.ReplaceAll(val, "\n", " ")
 			title = strings.ReplaceAll(title, "\r", "")
 			if len(title) > popupTruncateLength {
-				title = title[:popupTruncateLength] + "... (" + strconv.Itoa(len(val)) + " chars)"
+				title = truncateUTF8BytesMax(title, popupTruncateLength) + "... (" + strconv.Itoa(len(val)) + " chars)"
 			}
 		}
+		// NSMenuItem / NSString require valid UTF-8; byte truncation can split runes.
+		title = strings.ToValidUTF8(title, "\uFFFD")
 		items = append(items, popup.Item{
 			Title: title,
 			Value: val,
 		})
 	}
 	return items
+}
+
+// truncateUTF8BytesMax returns s truncated to at most maxBytes bytes without
+// splitting a UTF-8 codepoint.
+func truncateUTF8BytesMax(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	s = s[:maxBytes]
+	for len(s) > 0 && !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 func (c *clipboard) obfuscateTitle(val string) string {

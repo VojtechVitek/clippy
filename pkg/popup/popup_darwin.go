@@ -13,6 +13,7 @@ extern void SimulatePaste(void);
 import "C"
 
 import (
+	"strings"
 	"sync/atomic"
 	"unsafe"
 )
@@ -55,7 +56,9 @@ func ShowPopup(items []Item) int {
 
 	cTitles := make([]*C.char, len(items))
 	for i, item := range items {
-		cTitles[i] = C.CString(item.Title)
+		// CString stops at first NUL; AppKit still needs valid UTF-8 for titles.
+		t := strings.ToValidUTF8(strings.ReplaceAll(item.Title, "\x00", ""), "\uFFFD")
+		cTitles[i] = C.CString(t)
 	}
 	defer func() {
 		for _, s := range cTitles {
