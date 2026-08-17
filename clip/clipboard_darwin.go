@@ -8,6 +8,7 @@
 package clip
 
 import (
+	"os"
 	"os/exec"
 )
 
@@ -19,11 +20,17 @@ var (
 )
 
 func getPasteCommand() *exec.Cmd {
-	return exec.Command(pasteCmdArgs)
+	cmd := exec.Command(pasteCmdArgs)
+	// Without a UTF-8 locale, pbpaste transcodes to ASCII and turns non-ASCII chars into '?'.
+	cmd.Env = append(os.Environ(), "LANG=en_US.UTF-8")
+	return cmd
 }
 
 func getCopyCommand() *exec.Cmd {
-	return exec.Command(copyCmdArgs)
+	cmd := exec.Command(copyCmdArgs)
+	// Without a UTF-8 locale, pbcopy misreads UTF-8 input as mojibake.
+	cmd.Env = append(os.Environ(), "LANG=en_US.UTF-8")
+	return cmd
 }
 
 func readAll() (string, error) {
