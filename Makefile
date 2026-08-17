@@ -6,16 +6,18 @@ COVER_HTML=cover.html
 all: open
 
 build: clean
-	mkdir -p -v ./bin/go-clip.app/Contents/Resources
-	mkdir -p -v ./bin/go-clip.app/Contents/MacOS
-	cp ./appInfo/*.plist ./bin/go-clip.app/Contents/Info.plist
-	cp ./appInfo/*.icns ./bin/go-clip.app/Contents/Resources/icon.icns
-	go build -o ./bin/go-clip.app/Contents/MacOS/go-clip cmd/main.go
+	mkdir -p -v ./bin/clippy.app/Contents/Resources
+	mkdir -p -v ./bin/clippy.app/Contents/MacOS
+	cp ./appInfo/*.plist ./bin/clippy.app/Contents/Info.plist
+	cp ./appInfo/*.icns ./bin/clippy.app/Contents/Resources/icon.icns
+	go build -o ./bin/clippy.app/Contents/MacOS/go-clip cmd/main.go
+
 build-win:
 	env GOOS=windows GOARCH=amd64 go build -ldflags -H=windowsgui -o ./bin/go-clip-win.exe cmd/main.go
+
 open: build
 	killall go-clip 2>/dev/null && sleep 0.5
-	open ./bin/go-clip.app
+	open ./bin/clippy.app
 
 clean:
 	rm -rf ./bin
@@ -27,7 +29,7 @@ vet:
 	go vet ./...
 
 lint:
-	go list ./... | grep -v vendor | grep -v /assets/ |xargs -L1 golint -set_exit_status
+	go list ./... | grep -v vendor | grep -v /assets/ | xargs -L1 golint -set_exit_status
 
 test:coverage
 
